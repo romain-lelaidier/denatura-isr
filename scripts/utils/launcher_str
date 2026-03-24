@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH -p geo-cpu
+#SBATCH -N 1
+#SBATCH --exclusive
+#SBATCH --tasks-per-node=20
+#SBATCH --mem=0
+#SBATCH --output=job.log
+#SBATCH --error=job.err
+#SBATCH --job-name=XXJOBNAMEXX
+
+module load openmpi/4.1.2 VTK/8.2.0
+
+HOME=/cluster/GEOSCIENCES/home/rlelaidier
+BIN=/cluster/GEOSCIENCES/home/nseigneur/hytec/hytec-git/build/bin
+LD_LIBRARY_PATH=/cluster/GEOSCIENCES/home/nseigneur/petsc/install/lib:$LD_LIBRARY_PATH
+
+mpiexec -np $SLURM_NTASKS $BIN/hytec config.htc

@@ -1,0 +1,247 @@
+database = ../../../chess.tdb
+grid-regime = rectangle 3D
+domain = 400,80 300,60 12,1
+
+output-format = res, vtk
+flow-regime = saturated, stationary
+read minerals = XXUDATXX
+storage = 1e-4
+
+optimize-basis = cont
+permeability = 1e-5 m/s
+diffusion-coefficient = 1e-10 m2/s
+porosity = 0.23
+dispersivity = 0.2 m
+
+head = 0 m
+zone aquifer {
+  geometry = domain
+  geochem = aquifer
+}
+
+# TO ADAP WITH GEOMETRY (domain lengths)
+zone boundaries {
+  geometry = rectangle 2.5,   150,   6   5,   300, 12 m
+  geometry = rectangle 397.5, 150,   6   5,   300, 12 m
+  geometry = rectangle 200,   2.5,   6   400, 5,   12 m
+  geometry = rectangle 200,   297.5, 6   400, 5,   12 m
+  head = 0 m
+  geochem = aquifer
+  flow-constraint = constant-head
+  transport-constraint = constant-conc
+}
+
+XXGEOXX
+
+# MODELE GEOCHIMIQUE: à ne pas toucher !
+
+redox = enabled
+correction-model = b-dot
+exclude gases, colloids, minerals
+equilibration-time = 10 y
+temperature = 28 C
+
+unit aquifer {
+  mineral Cristobalite(alpha) = 117 mol/kg     
+  mineral Beidellite-Mg-Fe = 0.5 mol/kg
+  mineral Kaolinite = 0.5055 mol/kg
+  mineral Goethite = XXGOETHITEXX mmolal
+  conc Calcite = 0.2 g/L
+  mineral Uraninite = 1 mg/l
+  tot SO4[2-] = 176 mg/L
+  conc CO2(aq) = 1.2e-4 mol/l
+  pH = 7.68
+  conc Mg[2+] = 23 mg/l 
+  conc Na[+] = 109 mg/l 
+  tot Cl[-] = 70 mg/l
+  Eh = -180 mV
+}
+
+unit leaching_solution_20 {
+  total H2SO4(aq) = 20 g/l
+  total Ca[2+] = 509 mg/l
+  total Mg[2+] = 583 mg/l
+  total Al[3+] = 724 mg/l
+  total SO4[2-] = 13820 mg/l
+  total Cl[-] = 140 mg/l
+  total Na[+] = 200 mg/l
+  total Fe[2+] = XXFE2XX g/l
+  total Fe[3+] = XXFE3XX mg/l
+  balance on SO4[2-]
+}
+
+unit leaching_solution {
+  total H2SO4(aq) = 10 g/l
+  total Ca[2+] = 509 mg/l
+  total Mg[2+] = 583 mg/l
+  total Al[3+] = 724 mg/l
+  total SO4[2-] = 13820 mg/l
+  total Cl[-] = 140 mg/l
+  total Na[+] = 200 mg/l
+  total Fe[2+] = XXFE2XX g/l
+  total Fe[3+] = XXFE3XX mg/l
+  balance on SO4[2-]
+}
+
+# Criteres de temps
+# ------------------------
+duration = 5 years
+timestep = variable {
+  start = 10 min
+  maximum = 12 h
+}
+
+samples = 60
+flux-sampling = 1825 #1 par jour pour 5 ans
+
+select pH
+select Eh
+select head
+select aqueous{SO4[2-]}, aqueous{Ca[2+]}, aqueous{Mg[2+]}, aqueous{Na[+]}, aqueous{Cl[-]}, aqueous{UO2[2+]}, aqueous{Fe[2+]}, aqueous{Al[3+]}
+select minerals
+select pore-volume-replacement
+select rate{Uraninite}, rate{Goethite}, rate{Beidellite-Mg-Fe}
+
+flux-select aqueous{SO4[2-]}, aqueous{Ca[2+]}, aqueous{Mg[2+]}, aqueous{Na[+]}, aqueous{Cl[-]}, aqueous{UO2[2+]}, aqueous{Fe[2+]}
+flux-select H[+], H2SO4(aq), HSO4[-]
+
+extend mineral Uraninite {
+  surface = 500 cm2/g
+  kinetics {
+    rate = -3.2e-08 mol/m2/s
+	area = Uraninite
+	y-term, species = Uraninite
+	w-term {
+	  species = H[+]
+	  power = 0.37
+	}
+  }
+  kinetics {
+    rate = 3.2e-09 mol/m2/s
+	area = Uraninite
+	y-term, species = Uraninite
+	w-term {
+	  species = H[+]
+	  power = 0.37
+	}
+  }
+}
+
+extend mineral Cristobalite(alpha) {
+  surface = 2000 cm2/g 
+  kinetics {
+    rate = -2e-14 mol/m2/s
+	area = Cristobalite(alpha)
+	y-term, species = Cristobalite(alpha)
+  }
+  kinetics {
+    rate = 2e-14 mol/m2/s
+	area = Cristobalite(alpha)
+	y-term, species = Cristobalite(alpha)
+  }
+}
+
+extend mineral Goethite {
+  surface = 1 m2/g
+  kinetics {
+    rate = -1e-07 mol/m2/s
+	area = Goethite
+	y-term, species = Goethite
+  }
+  kinetics {
+    rate = 1e-07 mol/m2/s
+	area = Goethite
+	y-term, species = Goethite
+  }
+}
+
+extend mineral Kaolinite {
+  surface = 500 cm2/g
+  kinetics {
+	rate = -4.9e-12 mol/m2/s
+	area = Kaolinite
+	y-term, species = Kaolinite
+	w-term {
+	  species = H[+]
+	  power = 0.78
+	}
+  }
+  kinetics {
+	rate = 4.9e-11 mol/m2/s
+	area = Kaolinite
+	y-term, species = Kaolinite
+	w-term {
+	  species = H[+]
+	  power = 0.78
+	}
+  }
+}
+
+extend mineral Beidellite-Mg-Fe {
+  surface = 600 m2/g
+  kinetics {
+    rate = -1.2e-14 mol/m2/s
+	area = Beidellite-Mg-Fe
+	y-term, species = Beidellite-Mg-Fe
+	w-term {
+	  species = H[+]
+	  power = 0.22
+	}
+  }
+}
+
+exclude minerals
+exclude colloids
+exclude gases
+exclude Ethyne(aq)
+exclude 1Butyne(aq)
+exclude 1Hexyne(aq)
+exclude 1Pentyne(aq)
+exclude 1Heptyne(aq)
+exclude 1Octyne(aq)
+exclude 1Propyne(aq)
+exclude Phenol(aq)
+exclude U(CO3)4[4-]
+exclude U(CO3)5[6-]
+exclude U(SO4)2(aq)
+exclude UCl[3+]
+exclude UOH[3+]
+exclude USO4[2+]
+exclude U[3+]
+exclude S2O3[2-]
+exclude HSO5[-]
+exclude S2O4[2-]
+exclude S2O8[2-]
+exclude S3O6[2-]
+exclude S4O6[2-]
+exclude S5O6[2-]
+exclude S[2-]
+exclude SO2(aq)
+exclude UO2SO3(aq)
+exclude UO2(SO3)2[2-]
+exclude S2[2-]
+exclude S2O6[2-]
+exclude S3[2-]
+exclude S4[2-]
+exclude S5[2-]
+exclude SO3[2-]
+exclude HS2O3[-]
+exclude S2O5[2-]
+exclude ClO[-]
+exclude ClO3[-]
+exclude HClO(aq)
+exclude ClO2[-]
+exclude ClO4[-]
+exclude HClO2(aq)
+exclude (UO2)3(OH)4[2+]
+exclude (UO2)3(OH)5CO2[+]
+exclude (UO2)3O(OH)2(HCO3)[+]
+exclude Al13O4(OH)24[7+]
+exclude Al3(OH)4[5+]
+exclude H4(H2SiO4)4[4-]
+exclude (UO2)11(CO3)6(OH)[2-]
+exclude H6(H2SiO4)4[2-]
+exclude Mg4(OH)4[4+]
+exclude CO(aq)
+exclude HO2[-]
+exclude UO2[+]
