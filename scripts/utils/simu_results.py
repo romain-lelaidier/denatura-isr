@@ -4,8 +4,8 @@ import re
 import matplotlib.pyplot as plt
 
 from hytecio.core import HytecSimulation
-from prices import Prices
-from distribution import Distribution
+from utils.prices import Prices
+from utils.distribution import Distribution
 
 class SimuResults:
 
