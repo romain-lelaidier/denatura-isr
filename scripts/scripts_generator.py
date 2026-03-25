@@ -23,6 +23,7 @@ upth = args.u
 s = args.s or ""
 
 settings = {
+    'CHESS': "../../../chess.tdb",
     'MAX_FLOW': 10,     # max injection/production rate (m3/h) on any well
     'GOETHITE': 0.3,    # mmolal
     'FE2': 1,           # g/l
@@ -100,13 +101,11 @@ def build_simulation(name, jobname, settings, launch=False):
 
 shutil.copy(upth, os.path.join(root, "U.dat"))
 settings["UDAT"] = "../U.dat"
-# CONFIG_STR = CONFIG_STR.replace("XXUDATXX", "../U.dat")
 
 if gpth is not None:
     if not os.path.isfile(gpth):
         print(f"wells geometry file {gpth} does not exist")
     settings["GEO"] = open(gpth, "r").read()
-# CONFIG_STR = CONFIG_STR.replace("XXGEOXX", geometry)
 
 if params[0] == '':
     print("No setting specified: using default values")
@@ -125,6 +124,8 @@ else:
             build_simulation(f"{params[0]}_{value}", f"{params[0][0:5]}_{i}", settings, launch=args.l and N <= 10)
 
     elif params[0] == "HEX":
+        settings["CHESS"] = "../" + settings["CHESS"]
+        settings["UDAT"] = "../" + settings["UDAT"]
         from utils.distribution import Distribution
         from utils.hexagons_placer import place_hexagons
         dtb = Distribution.load_from_file(upth)

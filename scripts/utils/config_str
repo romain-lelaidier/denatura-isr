@@ -1,4 +1,4 @@
-database = ../../../chess.tdb
+database = XXCHESSXX
 grid-regime = rectangle 3D
 domain = 400,80 300,60 12,1
 
