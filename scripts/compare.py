@@ -28,7 +28,11 @@ for folder in os.listdir(root):
     m = re.findall(f"{setting}_([0-9.]+)", folder)
     if len(m) > 0:
         print(folder)
-        simulations.append((float(m[0]), SimuResults(os.path.join(root, folder))))
+        try:
+            simulations.append((float(m[0]), SimuResults(os.path.join(root, folder))))
+        except:
+            print(f"could not load simulation at {os.path.join(root, folder)}")
+            continue
 
 if len(simulations) == 0:
     print(f"No simulation found for setting {setting} in folder {root} ; aborting")
