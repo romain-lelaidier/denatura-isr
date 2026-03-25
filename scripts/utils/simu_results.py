@@ -148,6 +148,29 @@ class SimuResults:
         # returns the cumulated tonnage of consumed acid after n years
         return np.interp(years, self.time, self.acid_consumed)
 
+    def get_recuperation_ratio(self, years, R):
+        # returns the quantity of uranium produced / the quantity of uranium that could theoretically have been produced
+        U_produced = self.get_U_production(years)
+
+        U = self.dtb.get_col("Uraninite")
+
+        gx, gy = np.meshgrid(self.dtb.x, self.dtb.y)
+        def function_sum(wells, f):
+            filter = np.zeros(U.shape)
+            for [x, y] in wells:
+                filter += f((x - gx) ** 2 + (y - gy) ** 2)
+            return filter
+
+        filter_injectors = function_sum(self.injectors, lambda d: np.exp(-d/(2*R**2)))
+        filter_producers = function_sum(self.producers, lambda d: np.exp(-d/(2*R**2)))
+        filter = np.minimum(filter_producers, 1) * np.minimum(filter_injectors, 1)
+        porosity = 0.23
+        Vcell = (400/80) * (300/60) * 12            # m3
+        Vwater = filter * Vcell * porosity * 1000   # L
+        theoretical_U_production = np.sum(Vwater * U) * 270 / 1e6       # T
+
+        return U_produced / theoretical_U_production
+
     def plot_configuration(self, ax):
         title = "2D configuration"
         if self.dtb != None:
