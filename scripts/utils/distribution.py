@@ -91,7 +91,6 @@ class Distribution:
     @property
     def ys(self):
         return self.df['y-distance'].unique()
-    
     @property
     def area(self):
         return (self.x_max - self.x_min) * (self.y_max - self.y_min)

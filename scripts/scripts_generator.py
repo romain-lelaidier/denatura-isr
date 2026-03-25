@@ -22,30 +22,6 @@ gpth = args.g
 upth = args.u
 s = args.s or ""
 
-if root is None or gpth is None or upth is None:
-    parser.print_usage()
-    exit(0)
-
-# checking files
-if not os.path.isdir(root):
-    print(f"folder {root} does not exist ; creating it")
-    os.mkdir(root)
-
-if not os.path.isfile(gpth):
-    print(f"wells geometry file {gpth} does not exist")
-
-if not os.path.isfile(upth):
-    print(f"uranium distribution file {upth} does not exist")
-
-LAUNCHER_STR = open("./utils/launcher_str", "r").read()
-CONFIG_STR = open("./utils/config_str", "r").read()
-
-shutil.copy(upth, os.path.join(root, "U.dat"))
-CONFIG_STR = CONFIG_STR.replace("XXUDATXX", "../U.dat")
-
-geometry = open(gpth, "r").read()
-CONFIG_STR = CONFIG_STR.replace("XXGEOXX", geometry)
-
 settings = {
     'MAX_FLOW': 10,     # max injection/production rate (m3/h) on any well
     'GOETHITE': 0.3,    # mmolal
@@ -54,9 +30,22 @@ settings = {
 }
 params = s.split(',')
 
-def build_simulation(config_str, name, jobname, settings, launch=False):
-    print(f"building simulation {name} with settings {settings}")
+if root is None or (gpth is None and params[0] != "HEX") or upth is None:
+    parser.print_usage()
+    exit(0)
 
+# checking files
+if not os.path.isdir(root):
+    print(f"folder {root} does not exist ; creating it")
+    os.mkdir(root)
+
+if not os.path.isfile(upth):
+    print(f"uranium distribution file {upth} does not exist")
+
+LAUNCHER_STR = open("./utils/launcher_str", "r").read()
+CONFIG_STR = open("./utils/config_str", "r").read()
+
+def prepare_simulation_folder(name):
     sim_dir = os.path.join(root, name)
     if os.path.isdir(sim_dir):
         if args.f:
@@ -65,11 +54,17 @@ def build_simulation(config_str, name, jobname, settings, launch=False):
         else:
             print(f"  folder {sim_dir} already exists ; skipping")
             return
-    
     os.mkdir(sim_dir)
+    return sim_dir
+
+def build_simulation(name, jobname, settings, launch=False):
+    print(f"building simulation {name}")
+
+    sim_dir = prepare_simulation_folder(name)
     config_path = os.path.join(sim_dir, "config.htc")
     launcher_path = os.path.join(sim_dir, "launcher.sh")
 
+    config_str = CONFIG_STR
     for key, value in settings.items():
         config_str = config_str.replace(f"XX{key}XX", str(value))
 
@@ -103,20 +98,48 @@ def build_simulation(config_str, name, jobname, settings, launch=False):
         except Exception as e:
             print("  error while launching:", e)
 
+shutil.copy(upth, os.path.join(root, "U.dat"))
+settings["UDAT"] = "../U.dat"
+# CONFIG_STR = CONFIG_STR.replace("XXUDATXX", "../U.dat")
+
+if gpth is not None:
+    if not os.path.isfile(gpth):
+        print(f"wells geometry file {gpth} does not exist")
+    settings["GEO"] = open(gpth, "r").read()
+# CONFIG_STR = CONFIG_STR.replace("XXGEOXX", geometry)
+
 if params[0] == '':
     print("No setting specified: using default values")
-    build_simulation(CONFIG_STR, 'default', 'job_def', settings, launch=args.l)
+    build_simulation('default', 'job_def', settings, launch=args.l)
 
 else:
+    v0 = float(params[1])
+    v1 = float(params[2])
+    N = int(params[3])
+    values = np.logspace(np.log(v0), np.log(v1), N, base=np.e, endpoint=True)
+    values = np.round(values * 1000) / 1000
+
     if params[0] in settings:
-        v0 = float(params[1])
-        v1 = float(params[2])
-        N = int(params[3])
-        values = np.logspace(np.log(v0), np.log(v1), N, base=np.e, endpoint=True)
-        values = np.round(values * 1000) / 1000
         for i, value in enumerate(values):
             settings[params[0]] = value
-            build_simulation(CONFIG_STR, f"{params[0]}_{value}", f"{params[0][0:5]}_{i}", settings, launch=args.l and N <= 10)
+            build_simulation(f"{params[0]}_{value}", f"{params[0][0:5]}_{i}", settings, launch=args.l and N <= 10)
+
+    elif params[0] == "HEX":
+        from utils.distribution import Distribution
+        from utils.hexagons_placer import place_hexagons
+        dtb = Distribution.load_from_file(upth)
+        for i, R in enumerate(values):
+            name = f"R_{R:.1f}"
+            print(name)
+            sim_dir = prepare_simulation_folder(f"R_{R:.1f}")
+            settings["GEO"] = place_hexagons(dtb, R, os.path.join(sim_dir, f"wells.png"))
+            # surface_hex = (3*np.sqrt(3)/2) * R**2
+            flow_rate_for_T_res_ref = 12 * (R/42) ** 2  # m3/h
+            print(f"  reference flow rate: {flow_rate_for_T_res_ref:.2f} m3/h")
+            for multiplier in np.logspace(-0.7, 0.7, 7):
+                # multiplicateur du temps de résidence = diviseur du débit d'injection
+                settings["MAX_FLOW"] = flow_rate_for_T_res_ref / multiplier
+                build_simulation(f"{name}/m_{multiplier:.2f}", f"R{R:.0f}_m{multiplier:.2f}", settings, launch=False)
 
     else:
         print(f"setting {params[0]} not recognized ; available are {settings.keys()} ; aborting")
