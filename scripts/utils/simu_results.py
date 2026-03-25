@@ -140,6 +140,14 @@ class SimuResults:
                     elif type == "producteur":
                         self.producers.append([x, y])
 
+    def get_U_production(self, years):
+        # returns the cumulated tonnage of produced uranium after n years
+        return np.interp(years, self.time, self.U_produced_tons)
+    
+    def get_acid_consumption(self, years):
+        # returns the cumulated tonnage of consumed acid after n years
+        return np.interp(years, self.time, self.acid_consumed)
+
     def plot_configuration(self, ax):
         title = "2D configuration"
         if self.dtb != None:
