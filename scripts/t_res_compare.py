@@ -30,7 +30,6 @@ for folder in os.listdir(root):
     match = re.findall(f"R_([0-9.]+)", folder)
     if len(match) == 0: continue
     R = float(match[0])
-    if R <= 23: continue
     simulations[R] = {}
     for subfolder in os.listdir(os.path.join(root, folder)):
         match = re.findall(f"m_([0-9.]+)", subfolder)
