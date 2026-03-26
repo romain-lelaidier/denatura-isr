@@ -68,7 +68,7 @@ def geometry_htc_string(injectors, producers, R) -> str:
 
     return out
 
-def plot_estimated_production(U, dtb, gx, gy, injectors, producers, R, output_path):
+def plot_estimated_production(U, dtb, gx, gy, injectors, producers, R, output_path = None):
     estimated_production = estimated_production_filter(U, gx, gy, injectors, producers, R)
     plt.figure()
     plt.pcolormesh(dtb.x, dtb.y, estimated_production * U)
@@ -78,55 +78,85 @@ def plot_estimated_production(U, dtb, gx, gy, injectors, producers, R, output_pa
         plt.scatter(x, y, marker='x', color='white')
     plt.suptitle(f"{len(injectors)} injectors, {len(producers)} producers")
     plt.title(f"Estimated production: {estimated_U_production(U, gx, gy, injectors, producers, R):.1f} T")
-    plt.savefig(output_path)
+    if output_path is not None: plt.savefig(output_path)
 
-def place_hexagons(dtb: Distribution, R: float, output_figure_path: str) -> str:
-    # HEXAGONS
+available_placement_types = [ "HEX", "SQR" ]
 
+def place_wells(placement_type: str, dtb: Distribution, R: float, output_figure_path: str = None) -> str:
     Rs = R * 0.6        # R for sigma
 
-    U = dtb.get_col("Uraninite")
-    U_smoothed = dtb.smoothen("Uraninite", "U_smoothed", 8)
-
     gx, gy = np.meshgrid(dtb.x, dtb.y)
-    grad_U = np.gradient(U_smoothed)
+    cx = (dtb.x_min + dtb.x_max) / 2    # center x
+    cy = (dtb.y_min + dtb.y_max) / 2    # center y
+    U = dtb.get_col("Uraninite")
+    # U_smoothed = dtb.smoothen("Uraninite", "U_smoothed", 8)
+    # grad_U = np.gradient(U_smoothed)
 
     injectors = []
     producers = []
 
-    x, y = dtb.x_min, dtb.y_min
-    i, j = 0, 0
-    while x < dtb.x_max and y < dtb.y_max:
-        if i % 3 == 1:
-            producers.append([ x, y ])
-        else:
-            injectors.append([ x, y ])
-        x += R
-        i += 1
-        if x > dtb.x_max:
-            j += 1
-            i = (j % 2) * 2
-            y += R * np.cos(np.pi / 6)
-            x = dtb.x_min + (j % 2) * R / 2
+    if placement_type == "HEX":
+        surface_per_well = (3*np.sqrt(3)/2) * R**2 / (1+6*1/3)
+        x, y = dtb.x_min, dtb.y_min
+        i, j = 0, 0
+        while x < dtb.x_max and y < dtb.y_max:
+            if i % 3 == 1:
+                producers.append([ x, y ])
+            else:
+                injectors.append([ x, y ])
+            x += R
+            i += 1
+            if x > dtb.x_max:
+                j += 1
+                i = (j % 2) * 2
+                y += R * np.cos(np.pi / 6)
+                x = dtb.x_min + (j % 2) * R / 2
 
-    # injectors = filter_wells(np.array(injectors), R*0.6)
-    # producers = filter_wells(np.array(producers), R*0.6)
+    elif placement_type == "SQR":
+        surface_per_well = 2 * R**2 / (1+4*1/4)
+        x, y = dtb.x_min, dtb.y_min
+        j = 0
+        while x < dtb.x_max and y < dtb.y_max:
+            if j % 2 == 1:
+                producers.append([ x, y ])
+            else:
+                injectors.append([ x, y ])
+            x += np.sqrt(2) * R
+            if x > dtb.x_max:
+                j += 1
+                x = dtb.x_min + (j % 2) * np.sqrt(2) * R / 2
+                y += np.sqrt(2) * R / 2
 
-    def hex_opt_error(opt_X):
-        return - estimated_U_production(U, gx, gy, injectors + opt_X, producers + opt_X, Rs)
+    def transform(well, opt_X):
+        x, y = well
+        theta, dx, dy = opt_X
+        cost, sint = np.cos(theta), np.sin(theta)
+        x2, y2 = x + dx - cx, y + dy - cy
+        x3, y3 = x2 * cost - y2 * sint, x2 * sint + y2 * cost
+        return [ x3 + cx, y3 + cy ]
+    
+    def transform_wells(wells, opt_X):
+        return [ transform(well, opt_X) for well in wells ]
+
+    def opt_error(opt_X):
+        ijc = filter_wells(U, gx, gy, transform_wells(injectors, opt_X), Rs)
+        pdc = filter_wells(U, gx, gy, transform_wells(producers, opt_X), Rs)
+        return - estimated_U_production(U, gx, gy, ijc, pdc, Rs)
 
     res = sp.optimize.minimize(
-        hex_opt_error,
-        np.array([ 0, 0 ]),
-        bounds = [ (-R, R), (-R, R) ],
-        # method = "Nelder-Mead"
+        opt_error,
+        np.array([ 0, 0, 0 ]),
+        bounds = [ (-2*np.pi, 2*np.pi), (-R, R), (-R, R) ],
+        method = "Nelder-Mead"
     )
 
-    print(f"R = {R} m -> optimal delta: {res.x}")
-    injectors = filter_wells(U, gx, gy, injectors + res.x, Rs)
-    producers = filter_wells(U, gx, gy, producers + res.x, Rs)
+    print(f"[{placement_type}, R={R}m] -> optimal delta: {res.x}")
+    injectors = filter_wells(U, gx, gy, transform_wells(injectors, res.x), Rs)
+    producers = filter_wells(U, gx, gy, transform_wells(producers, res.x), Rs)
+
     plot_estimated_production(U, dtb, gx, gy, injectors, producers, Rs, output_figure_path)
-    return geometry_htc_string(injectors, producers, R)
+
+    return geometry_htc_string(injectors, producers, R), surface_per_well
 
 # dtb = Distribution.load_from_file("../distributions/ellipse/U.dat")
 # for R in np.linspace(20, )

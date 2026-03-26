@@ -6,6 +6,7 @@ import shutil
 import numpy as np
 import subprocess as sp
 import re
+from utils.placer import available_placement_types, place_wells
 
 # input parameters
 parser = argparse.ArgumentParser()
@@ -31,7 +32,7 @@ settings = {
 }
 params = s.split(',')
 
-if root is None or (gpth is None and params[0] != "HEX") or upth is None:
+if root is None or (gpth is None and params[0] not in available_placement_types) or upth is None:
     parser.print_usage()
     exit(0)
 
@@ -123,23 +124,23 @@ else:
             settings[params[0]] = value
             build_simulation(f"{params[0]}_{value}", f"{params[0][0:5]}_{i}", settings, launch=args.l and N <= 10)
 
-    elif params[0] == "HEX":
+    elif params[0] in available_placement_types:
         settings["CHESS"] = "../" + settings["CHESS"]
         settings["UDAT"] = "../" + settings["UDAT"]
         from utils.distribution import Distribution
-        from utils.hexagons_placer import place_hexagons
         dtb = Distribution.load_from_file(upth)
         for i, R in enumerate(values):
             name = f"R_{R:.1f}"
             print(name)
             sim_dir = prepare_simulation_folder(f"R_{R:.1f}")
-            settings["GEO"] = place_hexagons(dtb, R, os.path.join(sim_dir, f"wells.png"))
-            # surface_hex = (3*np.sqrt(3)/2) * R**2
-            flow_rate_for_T_res_ref = 12 * (R/42) ** 2  # m3/h
-            print(f"  reference flow rate: {flow_rate_for_T_res_ref:.2f} m3/h")
+            settings["GEO"], surface_per_well = place_wells(params[0], dtb, R, os.path.join(sim_dir, f"wells.png"))
+
+            T_res_ref = 12 * (np.sqrt(3)/2) * 42**2 / 12      # ~ 1527 h ~ 64 jours
+
             for multiplier in np.logspace(-0.7, 0.7, 7):
-                # multiplicateur du temps de résidence = diviseur du débit d'injection
-                settings["MAX_FLOW"] = flow_rate_for_T_res_ref / multiplier
+                T_res = T_res_ref * multiplier                  # h
+                flow_rate = surface_per_well * 12 / T_res       # m3/h
+                settings["MAX_FLOW"] = flow_rate
                 build_simulation(f"{name}/m_{multiplier:.2f}", f"R{R:.0f}_m{multiplier:.2f}", settings, launch=False)
 
     else:
