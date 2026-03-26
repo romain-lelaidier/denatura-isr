@@ -9,7 +9,7 @@ from utils.distribution import Distribution
 
 class SimuResults:
 
-    def __init__(self, root):
+    def __init__(self, root, R=None):
         """
         initiates numpy arrays of the same length, corresponding to different simulation results
         - time (years)
@@ -39,9 +39,9 @@ class SimuResults:
         # data itself
         fdata = simu.handlers.results.flux_res_data
         fdata_cum = simu.handlers.results.cumflux_res_data
-        N = fdata.shape[1]      # number of samples for each column
-        self.time = fdata[0,:,0]     # in years
-        self.time[0] = 0             # replacing nan
+        N = fdata.shape[1]          # number of samples for each column
+        self.time = fdata[0,:,0]    # in years
+        self.time[0] = 0            # replacing nan
         print(f"{len(self.flow_vars)} flow variables ; {len(self.wells_prod)} producers, {len(self.wells_inj)} injectors ; {N} time stamps ({self.time.min():.1f} - {self.time.max():.1f} y)")
 
         # aggregate data from all self.wells
@@ -89,9 +89,12 @@ class SimuResults:
         self.acid_consumed  = self.acid_injected - self.acid_recovered
         self.acid_consumed_total = self.acid_consumed[-1]
 
+        self.R = R
+        if R is not None: self.build_indicators()
+
     def parse_configuration(self):
         """
-        Returns:
+        Parses:
         - distribution
         - injectors
         - producers
@@ -148,28 +151,40 @@ class SimuResults:
         # returns the cumulated tonnage of consumed acid after n years
         return np.interp(years, self.time, self.acid_consumed)
 
-    def get_recuperation_ratio(self, years, R):
-        # returns the quantity of uranium produced / the quantity of uranium that could theoretically have been produced
-        U_produced = self.get_U_production(years)
-
-        U = self.dtb.get_col("Uraninite")
+    def build_indicators(self):
+        N_samples = self.simu.handlers.results.grid_res_data.shape[1]
+        self.time_samples = self.simu.handlers.results.get_sample_times_from_grid_res()
+        
+        # uranium recuperation ratio
+        U  = self.simu.handlers.results.extract_field_from_grid_res('Uraninite []', nx=self.dtb.NX, ny=self.dtb.NY, nz=1)
+        U0 = self.dtb.get_col("Uraninite")
+        # ensure U0 corresponds to U[0]
+        U0diff = np.abs(U[:,:,0,0].T - U0)
+        if U0diff.max() > 0:
+            print(f"  /!\\ Uranium distribution does not correspond to simulation : at t = 0, d_max = {U0diff.max()} mol/l and d_mean = {U0diff.mean()} mol/l")
 
         gx, gy = np.meshgrid(self.dtb.x, self.dtb.y)
         def function_sum(wells, f):
-            filter = np.zeros(U.shape)
+            filter = np.zeros(U0.shape)
             for [x, y] in wells:
-                filter += f((x - gx) ** 2 + (y - gy) ** 2)
+                filter += f((x-gx)**2 + (y-gy)**2)
             return filter
 
-        filter_injectors = function_sum(self.injectors, lambda d: np.exp(-d/(2*R**2)))
-        filter_producers = function_sum(self.producers, lambda d: np.exp(-d/(2*R**2)))
+        filter_injectors = function_sum(self.injectors, lambda d: np.exp(-d/(2*self.R**2)))
+        filter_producers = function_sum(self.producers, lambda d: np.exp(-d/(2*self.R**2)))
         filter = np.minimum(filter_producers, 1) * np.minimum(filter_injectors, 1)
-        porosity = 0.23
-        Vcell = (400/80) * (300/60) * 12            # m3
-        Vwater = filter * Vcell * porosity * 1000   # L
-        theoretical_U_production = np.sum(Vwater * U) * 270 / 1e6       # T
+        # porosity = 0.23
+        # Vcell = (400/80) * (300/60) * 12            # m3
+        # Vwater = filter * Vcell * porosity * 1000   # L
 
-        return U_produced / theoretical_U_production
+        self.recuperation_ratio = np.zeros(N_samples)
+        for i in range(N_samples):
+            self.recuperation_ratio[i] = ((U0 - U[:,:,0,i].T) * filter).sum() / (U0 * filter).sum()
+            # theoretical_U_production = np.sum(Vwater * U) * 270 / 1e6       # T
+
+    def get_recuperation_ratio(self, years):
+        # returns the quantity of uranium produced / the quantity of uranium that could theoretically have been produced
+        return np.interp(years, self.time_samples, self.recuperation_ratio)
 
     def plot_configuration(self, ax):
         title = "2D configuration"
