@@ -53,25 +53,31 @@ durations = [ 1, 2, 5 ]    # years
 for R, R_sims in simulations.items():
     m_values = list(R_sims.keys())
     m_values.sort()
+    RR = int(round(R))
 
     for i, d in enumerate(durations):
         SO4iy = []
         rratio = []
-        Uonacid = []
+        acidonU = []
         for m_value in m_values:
             sim = R_sims[m_value]
             SO4iy.append(sim.get_acid_consumption(d)/1e3)
             rratio.append(sim.get_recuperation_ratio(d))
-            Uonacid.append(1e3 * sim.get_U_production(d) / sim.get_acid_consumption(d))
-        axs[i].plot(m_values, rratio, label=f"R={R:.1f}m")
-        axs[3+i].plot(m_values, SO4iy, label=f"R={R:.1f}m")
-        axs[6+i].plot(m_values, Uonacid, label=f"R={R:.1f}m")
+            acidonU.append(sim.get_acid_consumption(d) / sim.get_U_production(d))
+        def plot(line, values):
+            if RR == 42:    # reference
+                axs[3*line+i].plot(m_values, values, label=f"R={RR}m (ref)", color="black")
+            else:
+                axs[3*line+i].plot(m_values, values, label=f"R={RR}m")
+        plot(0, rratio)
+        plot(1, SO4iy)
+        plot(2, acidonU)
 
 for i, d in enumerate(durations):
     years = f"{d} year{'' if d == 1 else 's'}"
     axs[i].set_title(f"Uranium recuperation ratio after {years}")
     axs[3+i].set_title(f"Acid consumption after {years} (kT)")
-    axs[6+i].set_title(f"U / SO4 after {years} (T/kT)")
+    axs[6+i].set_title(f"acid / U after {years} (T/T)")
     axs[i].set_ylim((0, 1))
     axs[3+i].set_ylim(0)
     axs[6+i].set_ylim(0)
