@@ -2,6 +2,7 @@ import re
 import os
 import numpy as np 
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import argparse
 
 # ----------------- PARSING ARGS -----------------
@@ -54,32 +55,33 @@ for R, R_sims in simulations.items():
     m_values.sort()
 
     for i, d in enumerate(durations):
-        #Uiy = []
         SO4iy = []
         rratio = []
         Uonacid = []
         for m_value in m_values:
             sim = R_sims[m_value]
-            #Uiy.append(sim.get_U_production(d))
             SO4iy.append(sim.get_acid_consumption(d)/1e3)
             rratio.append(sim.get_recuperation_ratio(d))
-            Uonacid.append(sim.get_U_production(d) / sim.get_acid_consumption(d))
+            Uonacid.append(1e3 * sim.get_U_production(d) / sim.get_acid_consumption(d))
         axs[i].plot(m_values, rratio, label=f"R={R:.1f}m")
         axs[3+i].plot(m_values, SO4iy, label=f"R={R:.1f}m")
         axs[6+i].plot(m_values, Uonacid, label=f"R={R:.1f}m")
-        #axs[6+i].plot(m_values, rratio, label=f"R={R:.1f}m")
 
 for i, d in enumerate(durations):
-    axs[i].set_title(f"Uranium recuperation ratio after {d} years")
+    years = f"{d} year{'' if d == 1 else 's'}"
+    axs[i].set_title(f"Uranium recuperation ratio after {years}")
+    axs[3+i].set_title(f"Acid consumption after {years} (kT)")
+    axs[6+i].set_title(f"U / SO4 after {years} (T/kT)")
     axs[i].set_ylim((0, 1))
-    axs[3+i].set_title(f"Acid consumption after {d} years (kT)")
-    axs[6+i].set_title(f"U / SO4 after {d} years")
 
 for ax in axs:
     ax.legend()
     ax.grid()
     ax.set_xlabel("$T_\\text{res} / T_\\text{res}^\\text{ref}$")
     ax.set_xscale("log")
+    ax.set_xlim((0.2, 5))
+    ax.xaxis.set_major_locator(ticker.LogLocator(base=10, subs=[0.2, 0.5, 1.0, 2.0, 5.0]))
+    ax.xaxis.set_major_formatter(ticker.StrMethodFormatter('{x:.1f}'))
 
 fig.tight_layout()
 fig.savefig(os.path.join(root, f"comparison.png"))
