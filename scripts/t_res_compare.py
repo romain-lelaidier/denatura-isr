@@ -73,6 +73,8 @@ for i, d in enumerate(durations):
     axs[3+i].set_title(f"Acid consumption after {years} (kT)")
     axs[6+i].set_title(f"U / SO4 after {years} (T/kT)")
     axs[i].set_ylim((0, 1))
+    axs[3+i].set_ylim(0)
+    axs[6+i].set_ylim(0)
 
 for ax in axs:
     ax.legend()
