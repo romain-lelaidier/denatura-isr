@@ -36,7 +36,7 @@ for folder in os.listdir(root):
         if len(match) == 0: continue
         m = float(match[0])
         try:
-            simulations[R][m] = SimuResults(os.path.join(root, folder, subfolder))
+            simulations[R][m] = SimuResults(os.path.join(root, folder, subfolder), R=R*0.6)
         except Exception as e:
             print(f"could not load simulation at {os.path.join(root, folder, subfolder)}")
             print(e)
@@ -62,7 +62,7 @@ for R, R_sims in simulations.items():
             sim = R_sims[m_value]
             #Uiy.append(sim.get_U_production(d))
             SO4iy.append(sim.get_acid_consumption(d)/1e3)
-            rratio.append(sim.get_recuperation_ratio(d, R*0.6))
+            rratio.append(sim.get_recuperation_ratio(d))
             Uonacid.append(sim.get_U_production(d) / sim.get_acid_consumption(d))
         axs[i].plot(m_values, rratio, label=f"R={R:.1f}m")
         axs[3+i].plot(m_values, SO4iy, label=f"R={R:.1f}m")
