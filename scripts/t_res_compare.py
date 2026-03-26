@@ -50,28 +50,32 @@ axs = axes.flatten()
 
 durations = [ 1, 2, 5 ]    # years
 
+acidonU_max = 0
+acid_max = 0
 for R, R_sims in simulations.items():
     m_values = list(R_sims.keys())
     m_values.sort()
     RR = int(round(R))
 
     for i, d in enumerate(durations):
-        SO4iy = []
+        acid = []
         rratio = []
         acidonU = []
         for m_value in m_values:
             sim = R_sims[m_value]
-            SO4iy.append(sim.get_acid_consumption(d)/1e3)
             rratio.append(sim.get_recuperation_ratio(d))
+            acid.append(sim.get_acid_consumption(d)/1e3)
             acidonU.append(sim.get_acid_consumption(d) / sim.get_U_production(d))
         def plot(line, values):
             if RR == 42:    # reference
-                axs[3*line+i].plot(m_values, values, label=f"R={RR}m (ref)", color="black")
+                axs[3*line+i].plot(m_values, values, label=f"R={RR}m (ref)", color="black", linestyle="dashed")
             else:
                 axs[3*line+i].plot(m_values, values, label=f"R={RR}m")
         plot(0, rratio)
-        plot(1, SO4iy)
+        plot(1, acid)
         plot(2, acidonU)
+        acid_max = max(acid_max, max(acid))
+        acidonU_max = max(acidonU_max, max(acidonU))
 
 for i, d in enumerate(durations):
     years = f"{d} year{'' if d == 1 else 's'}"
@@ -79,8 +83,8 @@ for i, d in enumerate(durations):
     axs[3+i].set_title(f"Acid consumption after {years} (kT)")
     axs[6+i].set_title(f"acid / U after {years} (T/T)")
     axs[i].set_ylim((0, 1))
-    axs[3+i].set_ylim(0)
-    axs[6+i].set_ylim(0)
+    axs[3+i].set_ylim((0, acid_max*1.1))
+    axs[6+i].set_ylim((0, acidonU_max*1.1))
 
 for ax in axs:
     ax.legend()
