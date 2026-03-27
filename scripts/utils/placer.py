@@ -185,7 +185,7 @@ class DistributionPlacer:
             out += f"  global-flux injecteur_{i+1} \n"
             out += f"  geochem = aquifer\n"
             out += f"  source = {well.d:.2f} m3/h using leaching_solution_20\n"
-            out += f"  modify at 30 days, source = {well.d} m3/h using leaching_solution\n}}\n\n"
+            out += f"  modify at 30 days, source = {well.d:.2f} m3/h using leaching_solution\n}}\n\n"
 
         return out
 
