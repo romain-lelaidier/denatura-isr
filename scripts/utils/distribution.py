@@ -94,6 +94,10 @@ class Distribution:
     @property
     def area(self):
         return (self.x_max - self.x_min) * (self.y_max - self.y_min)
+    @property
+    def meshgrid(self):
+        gx, gy = np.meshgrid(self.x, self.y)
+        return gx, gy
     
     def get_col(self, colname):
         values = self.df[colname].to_numpy()

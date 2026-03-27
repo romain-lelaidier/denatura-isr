@@ -6,7 +6,8 @@ import shutil
 import numpy as np
 import subprocess as sp
 import re
-from utils.placer import available_placement_types, place_wells
+from utils.distribution import Distribution
+from utils.placer import DistributionPlacer, build_flow_rates_from_voronoi
 
 # input parameters
 parser = argparse.ArgumentParser()
@@ -32,7 +33,7 @@ settings = {
 }
 params = s.split(',')
 
-if root is None or (gpth is None and params[0] not in available_placement_types) or upth is None:
+if root is None or (gpth is None and params[0] not in DistributionPlacer.available_placement_types) or upth is None:
     parser.print_usage()
     exit(0)
 
@@ -71,25 +72,28 @@ def build_simulation(name, jobname, settings, launch=False):
         config_str = config_str.replace(f"XX{key}XX", str(value))
 
     # replacing flows
-    flows = re.findall("([0-9.]+) m3/h", config_str)
-    flows_values = list(map(float, flows))
-    max_flow = max(flows_values)
+    if settings["MAX_FLOW"] is not None:
+        flows = re.findall("([0-9.]+) m3/h", config_str)
+        flows_values = list(map(float, flows))
+        max_flow = max(flows_values)
 
-    config_str_n = ''
-    while True:
-        match = re.search("([0-9.]+) m3/h", config_str)
-        if not match:
-            config_str_n += config_str
-            break
-        
-        ib, ie = match.span()
-        config_str_n += config_str[0:ib]
-        config_str = config_str[ie:]
+        config_str_n = ''
+        while True:
+            match = re.search("([0-9.]+) m3/h", config_str)
+            if not match:
+                config_str_n += config_str
+                break
+            
+            ib, ie = match.span()
+            config_str_n += config_str[0:ib]
+            config_str = config_str[ie:]
 
-        flow = float(match.groups()[0])
-        config_str_n += f"{flow * settings['MAX_FLOW'] / max_flow} m3/h"
+            flow = float(match.groups()[0])
+            config_str_n += f"{flow * settings['MAX_FLOW'] / max_flow} m3/h"
+
+        config_str = config_str_n
         
-    open(config_path, "w").write(config_str_n)
+    open(config_path, "w").write(config_str)
     open(launcher_path, "w").write(LAUNCHER_STR.replace("XXJOBNAMEXX", jobname))
 
     if launch:
@@ -124,24 +128,29 @@ else:
             settings[params[0]] = value
             build_simulation(f"{params[0]}_{value}", f"{params[0][0:5]}_{i}", settings, launch=args.l and N <= 10)
 
-    elif params[0] in available_placement_types:
+    elif params[0] in DistributionPlacer.available_placement_types:
+
         settings["CHESS"] = "../" + settings["CHESS"]
         settings["UDAT"] = "../" + settings["UDAT"]
-        from utils.distribution import Distribution
+
         dtb = Distribution.load_from_file(upth)
-        for i, R in enumerate(values):
-            name = f"R_{R:.1f}"
+        placer = DistributionPlacer(dtb)
+
+        for i, Rc in enumerate(values):
+            name = f"RC_{Rc:.1f}"
             print(name)
-            sim_dir = prepare_simulation_folder(f"R_{R:.1f}")
-            settings["GEO"], surface_per_well = place_wells(params[0], dtb, R, os.path.join(sim_dir, f"wells.png"))
 
-            T_res_ref = 12 * (np.sqrt(3)/2) * 42**2 / 12      # ~ 1527 h ~ 64 jours
+            sim_dir = prepare_simulation_folder(name)
 
-            for multiplier in np.logspace(-0.7, 0.7, 7):
-                T_res = T_res_ref * multiplier                  # h
-                flow_rate = surface_per_well * 12 / T_res       # m3/h
-                settings["MAX_FLOW"] = flow_rate
-                build_simulation(f"{name}/m_{multiplier:.2f}", f"R{R:.0f}_m{multiplier:.2f}", settings, launch=False)
+            wells = placer.place(params[0], Rc, os.path.join(sim_dir, f"wells.png"))
+
+            for j, multiplier in enumerate(np.logspace(-0.7, 0.7, 7)):
+                T_res = multiplier * DistributionPlacer.T_res_ref   # h
+                max_flow = build_flow_rates_from_voronoi(wells, Rc, T_res, os.path.join(sim_dir, f"flows.png") if j == 0 else None)  # m3/h
+                if max_flow <= 20:  # m3/h
+                    settings["GEO"] = DistributionPlacer.geometry_htc_string(wells)
+                    settings["MAX_FLOW"] = None
+                    build_simulation(f"{name}/m_{multiplier:.2f}", f"Rc{Rc:.0f}_{multiplier:.2f}", settings, launch=False)
 
     else:
         print(f"setting {params[0]} not recognized ; available are {settings.keys()} ; aborting")
