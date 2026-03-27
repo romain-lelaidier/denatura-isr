@@ -28,16 +28,16 @@ from utils.prices import prices
 
 simulations = {}
 for folder in os.listdir(root):
-    match = re.findall(f"R_([0-9.]+)", folder)
+    match = re.findall(f"RC_([0-9.]+)", folder)
     if len(match) == 0: continue
-    R = float(match[0])
-    simulations[R] = {}
+    RC = float(match[0])
+    simulations[RC] = {}
     for subfolder in os.listdir(os.path.join(root, folder)):
         match = re.findall(f"m_([0-9.]+)", subfolder)
         if len(match) == 0: continue
         m = float(match[0])
         try:
-            simulations[R][m] = SimuResults(os.path.join(root, folder, subfolder), R=R*0.6)
+            simulations[RC][m] = SimuResults(os.path.join(root, folder, subfolder), RC)
         except Exception as e:
             print(f"could not load simulation at {os.path.join(root, folder, subfolder)}")
             print(e)
@@ -52,10 +52,10 @@ durations = [ 1, 2, 5 ]    # years
 
 acidonU_max = 0
 acid_max = 0
-for R, R_sims in simulations.items():
+for RC, R_sims in simulations.items():
     m_values = list(R_sims.keys())
     m_values.sort()
-    RR = int(round(R))
+    RCR = int(round(RC))
 
     for i, d in enumerate(durations):
         acid = []
@@ -67,10 +67,10 @@ for R, R_sims in simulations.items():
             acid.append(sim.get_acid_consumption(d)/1e3)
             acidonU.append(sim.get_acid_consumption(d) / sim.get_U_production(d))
         def plot(line, values):
-            if RR == 42:    # reference
-                axs[3*line+i].plot(m_values, values, label=f"R={RR}m (ref)", color="black", linestyle="dashed")
+            if RCR == 22:    # reference
+                axs[3*line+i].plot(m_values, values, label=f"RC={RCR}m (ref)", color="black", linestyle="dashed")
             else:
-                axs[3*line+i].plot(m_values, values, label=f"R={RR}m")
+                axs[3*line+i].plot(m_values, values, label=f"RC={RCR}m")
         plot(0, rratio)
         plot(1, acid)
         plot(2, acidonU)

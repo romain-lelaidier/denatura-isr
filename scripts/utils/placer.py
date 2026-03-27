@@ -13,7 +13,7 @@ class Well:
         self.x = x          # (m)
         self.y = y          # (m)
         self.n = None       # number of opposite type neighbors
-        self.Rc = None      # (m) characteristical radius
+        self.RC = None      # (m) characteristical radius
 
     @classmethod
     def injector(cls, x, y):
@@ -43,20 +43,20 @@ class DistributionPlacer:
             filter += f((well.x - self.gx) ** 2 + (well.y - self.gy) ** 2)
         return filter
 
-    def filter_inverse_square(self, wells: list[Well], Rc: float):
+    def filter_inverse_square(self, wells: list[Well], RC: float):
         x = 0.334       # R^2/(2 sigma^2) -> eta = 85%
-        sigma = Rc / np.sqrt(2*x)
+        sigma = RC / np.sqrt(2*x)
         return self.function_sum(wells, lambda d: np.exp(-d/(2*sigma**2)))
 
-    def estimated_production_filter(self, wells: list[Well], Rc):
-        filter_injectors = self.filter_inverse_square([ well for well in wells if well.type == 'i' ], Rc)
-        filter_producers = self.filter_inverse_square([ well for well in wells if well.type == 'p' ], Rc)
+    def estimated_production_filter(self, wells: list[Well], RC):
+        filter_injectors = self.filter_inverse_square([ well for well in wells if well.type == 'i' ], RC)
+        filter_producers = self.filter_inverse_square([ well for well in wells if well.type == 'p' ], RC)
         filter_injectors = np.minimum(filter_injectors, 1)
         filter_producers = np.minimum(filter_producers, 1)
         return filter_injectors * filter_producers
 
-    def estimated_U_production(self, wells: list[Well], Rc: float):
-        filter = self.estimated_production_filter(wells, Rc)
+    def estimated_U_production(self, wells: list[Well], RC: float):
+        filter = self.estimated_production_filter(wells, RC)
         porosity = 0.23
         Vcell = (400/80) * (300/60) * 12            # m3
         Vwater = filter * Vcell * porosity * 1000   # L
@@ -64,8 +64,8 @@ class DistributionPlacer:
 
 
     # GENERATION
-    def generate_grid_hexagons(self, Rc: float) -> list[Well]:
-        R = np.sqrt(2*np.pi/np.sqrt(3)) * Rc
+    def generate_grid_hexagons(self, RC: float) -> list[Well]:
+        R = np.sqrt(2*np.pi/np.sqrt(3)) * RC
         wells = []
         x, y = self.dtb.x_min, self.dtb.y_min
         i, j = 0, 0
@@ -83,8 +83,8 @@ class DistributionPlacer:
                 x = self.dtb.x_min + (j % 2) * R / 2
         return R, wells
     
-    def generate_grid_square(self, Rc: float) -> list[Well]:
-        R = np.sqrt(np.pi) * Rc
+    def generate_grid_square(self, RC: float) -> list[Well]:
+        R = np.sqrt(np.pi) * RC
         wells = []
         x, y = self.dtb.x_min, self.dtb.y_min
         j = 0
@@ -102,14 +102,14 @@ class DistributionPlacer:
 
 
     # TRANSFORMATION
-    def filter_wells(self, wells, Rc):
-        estimated_wells_individual_production = np.array(list(map(lambda pos: (self.filter_inverse_square([pos], Rc) * self.U).sum(), wells)))
+    def filter_wells(self, wells, RC):
+        estimated_wells_individual_production = np.array(list(map(lambda pos: (self.filter_inverse_square([pos], RC) * self.U).sum(), wells)))
         valid_indices = list(filter(lambda i: estimated_wells_individual_production[i] > estimated_wells_individual_production.max() / 4, range(len(wells))))
         return [ wells[i] for i in valid_indices ]
     
 
     # OPTIMIZATION
-    def optimal_transformation(self, wells: list[Well], max_R: float, Rc: float) -> list[Well]:
+    def optimal_transformation(self, wells: list[Well], max_R: float, RC: float) -> list[Well]:
 
         cx = (self.dtb.x_min + self.dtb.x_max) / 2    # center x
         cy = (self.dtb.y_min + self.dtb.y_max) / 2    # center y
@@ -126,8 +126,8 @@ class DistributionPlacer:
             return [ transform(well, opt_X) for well in wells ]
 
         def opt_error(opt_X):
-            filtered_wells = self.filter_wells(transform_wells(wells, opt_X), Rc)
-            return - self.estimated_U_production(filtered_wells, Rc)
+            filtered_wells = self.filter_wells(transform_wells(wells, opt_X), RC)
+            return - self.estimated_U_production(filtered_wells, RC)
 
         res = sp.optimize.minimize(
             opt_error,
@@ -136,35 +136,35 @@ class DistributionPlacer:
             method = "Nelder-Mead"
         )
 
-        return self.filter_wells(transform_wells(wells, res.x), Rc)
+        return self.filter_wells(transform_wells(wells, res.x), RC)
 
-    def place(self, placement_type: str, Rc: float, output_figure_path: str = None) -> list[Well]:
+    def place(self, placement_type: str, RC: float, output_figure_path: str = None) -> list[Well]:
 
         if placement_type == "HEX":
-            max_R, wells = self.generate_grid_hexagons(Rc)
+            max_R, wells = self.generate_grid_hexagons(RC)
         elif placement_type == "SQR":
-            max_R, wells = self.generate_grid_square(Rc)
+            max_R, wells = self.generate_grid_square(RC)
         else:
             print(f"invalid placement type {placement_type}")
             return
         
-        wells = self.optimal_transformation(wells, max_R, Rc)
+        wells = self.optimal_transformation(wells, max_R, RC)
 
-        self.plot_estimated_production(wells, Rc, output_figure_path)
+        self.plot_estimated_production(wells, RC, output_figure_path)
 
         return wells
 
 
     # OUTPUT
-    def plot_estimated_production(self, wells: list[Well], Rc, output_path = None):
-        estimated_production = self.estimated_production_filter(wells, Rc)
+    def plot_estimated_production(self, wells: list[Well], RC, output_path = None):
+        estimated_production = self.estimated_production_filter(wells, RC)
         plt.figure()
         plt.pcolormesh(self.dtb.x, self.dtb.y, estimated_production * self.U)
         for well in wells:
             plt.scatter(well.x, well.y, marker='x', color=('red' if well.type == 'i' else 'white'))
         N_injectors = len([ well for well in wells if well.type == 'i' ])
         plt.suptitle(f"{N_injectors} injectors ; {len(wells) - N_injectors} producers")
-        plt.title(f"Estimated production: {self.estimated_U_production(wells, Rc):.1f} T")
+        plt.title(f"Estimated production: {self.estimated_U_production(wells, RC):.1f} T")
         if output_path is not None: plt.savefig(output_path)
 
     @classmethod
@@ -190,10 +190,10 @@ class DistributionPlacer:
         return out
 
 
-def build_flow_rates_from_voronoi(wells: list[Well], Rc: float, T_res: float, figure_path: str | None) -> float:
+def build_flow_rates_from_voronoi(wells: list[Well], RC: float, T_res: float, figure_path: str | None) -> float:
 
     points = np.array([ [well.x, well.y] for well in wells ]) + np.random.random((len(wells), 2))/2
-    dilation_max = Rc*1.5
+    dilation_max = RC*1.5
     bounding_region_box = shapely.MultiPoint(points).buffer(dilation_max)
     v = sp.spatial.Voronoi(points)
     regions, vertices = voronoi_finite_polygons_2d(v)
@@ -265,7 +265,7 @@ def build_flow_rates_from_voronoi(wells: list[Well], Rc: float, T_res: float, fi
             poly = [p for p in well.polygon.exterior.coords]
             plt.fill(*zip(*poly), alpha=well.d/max_d/3, color=color)
             plt.scatter(well.x, well.y, s=10*well.d/max_d, color=color)
-            plt.text(well.x, well.y + Rc/4, str(i), horizontalalignment="center")
+            plt.text(well.x, well.y + RC/4, str(i), horizontalalignment="center")
         plt.savefig(figure_path)
 
     return max_d
