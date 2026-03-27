@@ -179,7 +179,7 @@ class DistributionPlacer:
             out += f"  geochem = aquifer\n"
             out += f"  source = -{well.d:.2f} m3/h\n}}\n\n"
 
-        for i, well in enumerate([ w for w in wells if w.type == 'p' ]):
+        for i, well in enumerate([ w for w in wells if w.type == 'i' ]):
             out += f"zone injecteur_{i+1} {{\n"
             out += f"  geometry = rectangle {well.x:.2f}, {well.y:.2f}, 6 {DX}, {DY}, {DZ} m\n"
             out += f"  global-flux injecteur_{i+1} \n"
