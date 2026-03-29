@@ -54,6 +54,7 @@ acidonU_max = 0
 acid_max = 0
 for RC, R_sims in simulations.items():
     m_values = list(R_sims.keys())
+    if len(m_values) == 0: continue
     m_values.sort()
     RCR = int(round(RC))
 

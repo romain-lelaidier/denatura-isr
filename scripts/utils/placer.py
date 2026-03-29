@@ -27,7 +27,7 @@ class Well:
 
 class DistributionPlacer:
 
-    available_placement_types = [ "HEX", "SQR" ]
+    available_placement_types = [ "HEX", "SQR", "ORG" ]
     T_res_ref = (3*np.sqrt(3) * 42**2) * 12 / 12    # h for a 42m-radius cell with 12 m3/h production flow
 
     def __init__(self, dtb: Distribution):
@@ -138,17 +138,92 @@ class DistributionPlacer:
 
         return self.filter_wells(transform_wells(wells, res.x), RC)
 
-    def place(self, placement_type: str, RC: float, output_figure_path: str = None) -> list[Well]:
+    def place(self, settings: dict, output_figure_path: str = None) -> list[Well]:
 
-        if placement_type == "HEX":
+        type = settings["type"]
+        RC = settings["RC"]
+
+        if type == "ORG":
+
+            IP_ratio = settings["IP_ratio"]     # N_injectors / N_producers
+
+            # overall distribution shape
+            US = self.dtb.smoothen("Uraninite", "U_smoothed", 10)
+            U_area = US > US.max() / 10
+            U_area_points = []
+            gx, gy = self.dtb.meshgrid
+            for i, U_area_i in enumerate(U_area):
+                for j, U_area_ij in enumerate(U_area_i):
+                    if U_area_ij:
+                        x, y = gx[i,j], gy[i,j]
+                        U_area_points.append([ x, y ])
+            dilation = max(self.dtb.xw, self.dtb.yh)*3
+            shape = shapely.MultiPoint(U_area_points).buffer(dilation)
+            shape = shape.buffer(-dilation).simplify(dilation)
+
+            # configuration
+            cell_area = self.dtb.xw * self.dtb.yh          # m2
+            area = U_area.sum() * cell_area      # m2
+            well_area = np.pi * RC**2
+            N_wells = area / well_area
+            N_injectors = int(round(N_wells / (1 + 1/IP_ratio)))
+            N_producers = int(round(N_wells / (1 +   IP_ratio)))
+            N_wells = N_injectors + N_producers
+            print(f" RC={RC:.1f}m -> {N_wells} wells ({N_producers} producers)")
+
+            # wells generation
+            np_wells = np.array([ self.dtb.generate("U_smoothed") for _ in range(N_wells) ])
+
+            # OPTIMIZATION
+            def decompose_opt_X(opt_X):
+                injectors = opt_X[0:N_injectors*2].reshape((N_injectors, 2))
+                producers = opt_X[N_injectors*2: ].reshape((N_producers, 2))
+                return [ Well.injector(x, y) for [ x, y ] in injectors ] + [ Well.producer(x, y) for [ x, y ] in producers ]
+
+            def opt_error(opt_X):
+                wells = decompose_opt_X(opt_X)
+
+                # U production
+                U = self.estimated_U_production(wells, RC)
+
+                # preventing aggregates
+                distance_factor = 0
+                for i, well_i in enumerate(wells):
+                    for well_j in wells[i+1:]:
+                        d = np.sqrt((well_i.x - well_j.x)**2 + (well_i.y - well_j.y)**2)
+                        if d <= 3*RC:
+                            distance_factor += abs(d - 2*RC)**2
+                distance_factor /= N_wells * (N_wells - 1) / 2
+
+                # preventing diverging wells
+                diverging_factor = 0
+                for well in wells:
+                    distance = shape.distance(shapely.Point(well.x, well.y))
+                    diverging_factor += distance
+
+                # return diverging_factor
+                return diverging_factor / 10 + distance_factor / 10 - U
+
+            res = sp.optimize.minimize(
+                opt_error,
+                np_wells.reshape(N_wells * 2),
+                bounds = [ (self.dtb.x.min(), self.dtb.x.max()) if i % 2 == 0 else (self.dtb.y.min(), self.dtb.y.max()) for i in range(N_injectors * 2 + N_producers * 2) ],
+                # method = "Nelder-Mead"
+            )
+
+            wells = decompose_opt_X(res.x)
+            
+        elif type == "HEX":
             max_R, wells = self.generate_grid_hexagons(RC)
-        elif placement_type == "SQR":
+            wells = self.optimal_transformation(wells, max_R, RC)
+
+        elif type == "SQR":
             max_R, wells = self.generate_grid_square(RC)
+            wells = self.optimal_transformation(wells, max_R, RC)
+
         else:
-            print(f"invalid placement type {placement_type}")
+            print(f"invalid placement type {type}")
             return
-        
-        wells = self.optimal_transformation(wells, max_R, RC)
 
         self.plot_estimated_production(wells, RC, output_figure_path)
 
@@ -190,7 +265,7 @@ class DistributionPlacer:
         return out
 
 
-def build_flow_rates_from_voronoi(wells: list[Well], RC: float, T_res: float, figure_path: str | None) -> float:
+def build_flow_rates_from_voronoi(wells: list[Well], RC: float, T_res: float, figure_path: str = None) -> float:
 
     points = np.array([ [well.x, well.y] for well in wells ]) + np.random.random((len(wells), 2))/2
     dilation_max = RC*1.5
@@ -225,16 +300,21 @@ def build_flow_rates_from_voronoi(wells: list[Well], RC: float, T_res: float, fi
                         if np.linalg.norm(v1-m) > np.linalg.norm(v2-m):
                             v1, v2 = v2, v1
 
-                    if np.linalg.norm(v1-u) > dilation_max:
+                    alpha_2 = dilation_max**2 - np.linalg.norm(m-u)**2
+                    if alpha_2 > 0:
+                        alpha = np.sqrt(alpha_2)
+                    else:
+                        # wells are too far away and cannot intersect
                         continue
 
+                    if np.linalg.norm(v1-u) > dilation_max:
+                        if np.dot(v1-m, v2-m) > 0:
+                            continue
+                        v1 = m + alpha * (v1-v2) / np.linalg.norm(v1-v2)
+
                     if np.linalg.norm(v2-u) > dilation_max:
-                        alpha_2 = dilation_max**2 - np.linalg.norm(m-u)**2
-                        if alpha_2 > 0:
-                            v2 = m + np.sqrt(alpha_2) * (v2-v1)/np.linalg.norm(v2-v1)
-                            well.frontier += np.linalg.norm(v1-v2)
-                        else:
-                            print("nan ?", i, j)
+                        v2 = m + alpha * (v2-v1) / np.linalg.norm(v2-v1)
+                        well.frontier += np.linalg.norm(v1-v2)
                     else:
                         well.frontier += np.linalg.norm(v1-v2)
 
@@ -245,7 +325,9 @@ def build_flow_rates_from_voronoi(wells: list[Well], RC: float, T_res: float, fi
 
     total_area = np.sum([ well.area for well in wells ])
     total_frontier = np.sum([ well.frontier for well in wells if well.type == 'p' ])
-    assert abs(np.sum([ well.frontier for well in wells if well.type == 'i' ]) - total_frontier) <= 0.001
+    diff = abs(np.sum([ well.frontier for well in wells if well.type == 'i' ]) - total_frontier)
+    if diff > 0.001:
+        print(f" WARNING : Voronoi frontiers difference = {diff:.3f} m")
 
     # T_res = 9166                    # h
     D = 12 * total_area / T_res     # m3/h

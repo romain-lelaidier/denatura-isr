@@ -81,10 +81,10 @@ class Distribution:
         return np.linspace(self.y_min, self.y_max, self.NY)
     @property
     def xw(self):
-        return (self.x_max - self.x_min) / self.NX
+        return (self.x_max - self.x_min) / (self.NX - 1)
     @property
     def yh(self):
-        return (self.y_max - self.y_min) / self.NY
+        return (self.y_max - self.y_min) / (self.NY - 1)
     @property
     def xs(self):
         return self.df['x-distance'].unique()
@@ -128,7 +128,7 @@ class Distribution:
             if z <= self.evaluate(x, y, colname):
                 return [x, y]
             
-    def smoothen(self, colname, smoothed_colname, smooth_factor):
+    def smoothen(self, colname: str, smoothed_colname: str, smooth_factor: float) -> np.array:
         sigma = [ smooth_factor / self.xw, smooth_factor / self.yh ]
         smoothed = sp.ndimage.filters.gaussian_filter(self.get_col(colname), sigma, mode='constant')
         self.add_col(smoothed_colname, smoothed)

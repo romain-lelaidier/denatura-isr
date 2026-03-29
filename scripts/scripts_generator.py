@@ -136,21 +136,25 @@ else:
         dtb = Distribution.load_from_file(upth)
         placer = DistributionPlacer(dtb)
 
-        for i, Rc in enumerate(values):
-            name = f"RC_{Rc:.1f}"
+        for i, RC in enumerate(values):
+            name = f"RC_{RC:.1f}"
             print(name)
 
             sim_dir = prepare_simulation_folder(name)
 
-            wells = placer.place(params[0], Rc, os.path.join(sim_dir, f"wells.png"))
+            placement_settings = {
+                "type": params[0],
+                "RC": RC
+            }
+            wells = placer.place(placement_settings, os.path.join(sim_dir, f"wells.png"))
 
             for j, multiplier in enumerate(np.logspace(-0.7, 0.7, 7)):
                 T_res = multiplier * DistributionPlacer.T_res_ref   # h
-                max_flow = build_flow_rates_from_voronoi(wells, Rc, T_res, os.path.join(sim_dir, f"flows.png") if j == 0 else None)  # m3/h
+                max_flow = build_flow_rates_from_voronoi(wells, RC, T_res, os.path.join(sim_dir, f"flows.png") if j == 0 else None)  # m3/h
                 if max_flow <= 20:  # m3/h
                     settings["GEO"] = DistributionPlacer.geometry_htc_string(wells)
                     settings["MAX_FLOW"] = None
-                    build_simulation(f"{name}/m_{multiplier:.2f}", f"Rc{Rc:.0f}_{multiplier:.2f}", settings, launch=False)
+                    build_simulation(f"{name}/m_{multiplier:.2f}", f"Rc{RC:.0f}_{multiplier:.2f}", settings, launch=False)
 
     else:
         print(f"setting {params[0]} not recognized ; available are {settings.keys()} ; aborting")
