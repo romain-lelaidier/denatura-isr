@@ -146,6 +146,9 @@ else:
                 "type": params[0],
                 "RC": RC
             }
+            if params[0] == "ORG": 
+                placement_settings["IP_ratio"] = 1.5
+
             wells = placer.place(placement_settings, os.path.join(sim_dir, f"wells.png"))
 
             for j, multiplier in enumerate(np.logspace(-0.7, 0.7, 7)):
