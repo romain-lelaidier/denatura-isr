@@ -126,23 +126,9 @@ class SimuResults:
             self.dtb = None
 
         # finding wells
-        self.injectors = []
-        self.producers = []
-        wells = re.findall("(zone (producteur|injecteur)_(.+)) ", htcd)
-        for [ zone, type, id ] in wells:
-            htcz = htcd[htcd.index(zone):]
-            htczb = htcz.index('{')
-            htcze = htcz.index('}')
-            htcz_lines = htcz[htczb+1:htcze].split('\n')
-            for line in htcz_lines:
-                if "geometry" in line:
-                    coords_str = re.findall("([0-9.]+)", line)
-                    coords_float = list(map(float, coords_str))
-                    x, y = coords_float[0], coords_float[1]
-                    if type == "injecteur":
-                        self.injectors.append([x, y])
-                    elif type == "producteur":
-                        self.producers.append([x, y])
+        wells = DistributionPlacer.parse_geometry(htcd)
+        self.injectors = [ [ well.x, well.y ] for well in wells if well.type == 'i' ]
+        self.producers = [ [ well.x, well.y ] for well in wells if well.type == 'p' ]
 
     def get_U_production(self, years):
         # returns the cumulated tonnage of produced uranium after n years

@@ -15,6 +15,7 @@ parser.add_argument("-r", help="Simulation root")
 parser.add_argument("-g", help="Wells geometry file path")
 parser.add_argument("-u", help="Uranium distribution file path")
 parser.add_argument('-s', help="Varying setting")
+parser.add_argument('-t', help="Varying setting with time dependency")
 parser.add_argument('-f', action="store_true", help="Force overwrite")
 parser.add_argument('-l', action="store_true", help="Launch immediately")
 args = parser.parse_args()
@@ -22,7 +23,9 @@ args = parser.parse_args()
 root = args.r
 gpth = args.g
 upth = args.u
-s = args.s or ""
+s = args.s or args.t or ""
+is_T_res_dependent = args.t is not None
+params = s.split(',')
 
 settings = {
     'CHESS': "../../../chess.tdb",
@@ -31,7 +34,6 @@ settings = {
     'FE2': 1,           # g/l
     'FE3': 100          # mg/l      # 50 à KATCO
 }
-params = s.split(',')
 
 if root is None or (gpth is None and params[0] not in DistributionPlacer.available_placement_types) or upth is None:
     parser.print_usage()
@@ -115,50 +117,58 @@ if gpth is not None:
 if params[0] == '':
     print("No setting specified: using default values")
     build_simulation('default', 'job_def', settings, launch=args.l)
+    exit(0)
 
-else:
+# generating wanted values for the varying parameter
+values = [ float(params[1]) ]
+if len(params) == 4:
     v0 = float(params[1])
     v1 = float(params[2])
     N = int(params[3])
     values = np.logspace(np.log(v0), np.log(v1), N, base=np.e, endpoint=True)
     values = np.round(values * 1000) / 1000
 
-    if params[0] in settings:
-        for i, value in enumerate(values):
-            settings[params[0]] = value
-            build_simulation(f"{params[0]}_{value}", f"{params[0][0:5]}_{i}", settings, launch=args.l and N <= 10)
+if params[0] in DistributionPlacer.available_placement_types:
+    dtb = Distribution.load_from_file(upth)
+    placer = DistributionPlacer(dtb)
 
-    elif params[0] in DistributionPlacer.available_placement_types:
+# generating simulations
+if is_T_res_dependent:
 
-        settings["CHESS"] = "../" + settings["CHESS"]
-        settings["UDAT"] = "../" + settings["UDAT"]
+    settings["CHESS"] = "../" + settings["CHESS"]
+    settings["UDAT"] = "../" + settings["UDAT"]
+    T_res_m = np.logspace(-0.7, 0.7, 7)
+    T_res = T_res_m * DistributionPlacer.T_res_ref  # h
 
-        dtb = Distribution.load_from_file(upth)
-        placer = DistributionPlacer(dtb)
+    for value in values:
 
-        for i, RC in enumerate(values):
-            name = f"RC_{RC:.1f}"
-            print(name)
+        name = f"{params[0]}_{value:.3f}"
+        sim_dir = prepare_simulation_folder(name)
 
-            sim_dir = prepare_simulation_folder(name)
-
+        if params[0] in DistributionPlacer.available_placement_types:
             placement_settings = {
                 "type": params[0],
-                "RC": RC
+                "RC": value
             }
             if params[0] == "ORG": 
                 placement_settings["IP_ratio"] = 1.5
-
             wells = placer.place(placement_settings, os.path.join(sim_dir, f"wells.png"))
+            RC = value
 
-            for j, multiplier in enumerate(np.logspace(-0.7, 0.7, 7)):
-                T_res = multiplier * DistributionPlacer.T_res_ref   # h
-                max_flow = build_flow_rates_from_voronoi(wells, RC, T_res, os.path.join(sim_dir, f"flows.png") if j == 0 else None)  # m3/h
-                if max_flow <= 20:  # m3/h
-                    settings["GEO"] = DistributionPlacer.geometry_htc_string(wells)
-                    settings["MAX_FLOW"] = None
-                    build_simulation(f"{name}/m_{multiplier:.2f}", f"Rc{RC:.0f}_{multiplier:.2f}", settings, launch=False)
+        else:
+            settings[params[0]] = value
+            wells = DistributionPlacer.parse_geometry(settings["GEO"])
+            RC = 21.8   # à changer pour s'adapter à la géométrie d'entrée
 
-    else:
-        print(f"setting {params[0]} not recognized ; available are {settings.keys()} ; aborting")
-        exit(0)
+        for jm in range(len(T_res_m)):
+
+            max_flow = build_flow_rates_from_voronoi(wells, RC, T_res[jm], os.path.join(sim_dir, f"flows.png") if jm == 0 else None)  # m3/h
+            if max_flow <= 20:  # m3/h
+                settings["GEO"] = DistributionPlacer.geometry_htc_string(wells)
+                # settings["MAX_FLOW"] = max_flow
+                build_simulation(f"{name}/m_{T_res_m[jm]:.2f}", f"{params[0][0:2]}{value:.0f}_{T_res_m[jm]:.2f}", settings, launch=False)
+
+else:
+    for i, value in enumerate(values):
+        settings[params[0]] = value
+        build_simulation(f"{params[0]}_{value}", f"{params[0][0:2]}_{i}", settings, launch=args.l and N <= 10)

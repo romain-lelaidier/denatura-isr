@@ -2,9 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy as sp
 import shapely
+import re
 from utils.distribution import Distribution
 from utils.spatial import voronoi_finite_polygons_2d
-
 
 
 class Well:
@@ -263,6 +263,26 @@ class DistributionPlacer:
             out += f"  modify at 30 days, source = {well.d:.2f} m3/h using leaching_solution\n}}\n\n"
 
         return out
+
+    @classmethod
+    def parse_geometry(cls, geometry: str) -> list[Well]:
+        wells = []
+        wells_strs = re.findall("(zone (producteur|injecteur)_(.+)) ", geometry)
+        for [ zone, type, id ] in wells_strs:
+            htcz = geometry[geometry.index(zone):]
+            htczb = htcz.index('{')
+            htcze = htcz.index('}')
+            htcz_lines = htcz[htczb+1:htcze].split('\n')
+            for line in htcz_lines:
+                if "geometry" in line:
+                    coords_str = re.findall("([0-9.]+)", line)
+                    coords_float = list(map(float, coords_str))
+                    x, y = coords_float[0], coords_float[1]
+                    if type == "injecteur":
+                        wells.append(Well.injector(x, y))
+                    elif type == "producteur":
+                        wells.append(Well.producer(x, y))
+        return wells
 
 
 def build_flow_rates_from_voronoi(wells: list[Well], RC: float, T_res: float, figure_path: str = None) -> float:
