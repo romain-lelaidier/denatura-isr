@@ -26,7 +26,7 @@ s = args.s or ""
 
 settings = {
     'CHESS': "../../../chess.tdb",
-    'MAX_FLOW': 10,     # max injection/production rate (m3/h) on any well
+    # 'MAX_FLOW': 10,     # max injection/production rate (m3/h) on any well
     'GOETHITE': 0.3,    # mmolal
     'FE2': 1,           # g/l
     'FE3': 100          # mg/l      # 50 à KATCO
@@ -72,7 +72,7 @@ def build_simulation(name, jobname, settings, launch=False):
         config_str = config_str.replace(f"XX{key}XX", str(value))
 
     # replacing flows
-    if settings["MAX_FLOW"] is not None:
+    if "MAX_FLOW" in settings and settings["MAX_FLOW"] is not None:
         flows = re.findall("([0-9.]+) m3/h", config_str)
         flows_values = list(map(float, flows))
         max_flow = max(flows_values)

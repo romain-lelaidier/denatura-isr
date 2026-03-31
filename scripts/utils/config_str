@@ -46,6 +46,7 @@ unit aquifer {
   mineral Beidellite-Mg-Fe = 0.5 mol/kg
   mineral Kaolinite = 0.5055 mol/kg
   mineral Goethite = XXGOETHITEXX mmolal
+  conc Fe[2+] = 3.5464e-07 molal
   conc Calcite = 0.2 g/L
   mineral Uraninite = 1 mg/l
   tot SO4[2-] = 176 mg/L
