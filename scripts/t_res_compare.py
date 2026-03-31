@@ -9,9 +9,11 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-r", help="Directory root")
+parser.add_argument("-s", help="Setting")
 args = parser.parse_args()
 
 root = args.r
+s = parser.s or "RC"
 
 if root is None:
     parser.print_usage()
@@ -28,16 +30,17 @@ from utils.prices import prices
 
 simulations = {}
 for folder in os.listdir(root):
-    match = re.findall(f"RC_([0-9.]+)", folder)
+    match = re.findall(f"{s}_([0-9.]+)", folder)
     if len(match) == 0: continue
-    RC = float(match[0])
-    simulations[RC] = {}
+    value = float(match[0])
+    simulations[value] = {}
     for subfolder in os.listdir(os.path.join(root, folder)):
         match = re.findall(f"m_([0-9.]+)", subfolder)
         if len(match) == 0: continue
         m = float(match[0])
+        value = value if s == "RC" else 21.8
         try:
-            simulations[RC][m] = SimuResults(os.path.join(root, folder, subfolder), RC)
+            simulations[value][m] = SimuResults(os.path.join(root, folder, subfolder), value)
         except Exception as e:
             print(f"could not load simulation at {os.path.join(root, folder, subfolder)}")
             print(e)
@@ -52,11 +55,10 @@ durations = [ 1, 2, 5 ]    # years
 
 acidonU_max = 0
 acid_max = 0
-for RC, R_sims in simulations.items():
+for value, R_sims in simulations.items():
     m_values = list(R_sims.keys())
     if len(m_values) == 0: continue
     m_values.sort()
-    RCR = int(round(RC))
 
     for i, d in enumerate(durations):
         acid = []
@@ -68,10 +70,10 @@ for RC, R_sims in simulations.items():
             acid.append(sim.get_acid_consumption(d)/1e3)
             acidonU.append(sim.get_acid_consumption(d) / sim.get_U_production(d))
         def plot(line, values):
-            if RCR == 22:    # reference
-                axs[3*line+i].plot(m_values, values, label=f"RC={RCR}m (ref)", color="black", linestyle="dashed")
+            if s == "RC" and round(value) == 22:    # reference
+                axs[3*line+i].plot(m_values, values, label=f"RC={round(value)}m (ref)", color="black", linestyle="dashed")
             else:
-                axs[3*line+i].plot(m_values, values, label=f"RC={RCR}m")
+                axs[3*line+i].plot(m_values, values, label=f"{s}={value}")
         plot(0, rratio)
         plot(1, acid)
         plot(2, acidonU)
