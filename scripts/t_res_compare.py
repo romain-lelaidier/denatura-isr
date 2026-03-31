@@ -13,7 +13,7 @@ parser.add_argument("-s", help="Setting")
 args = parser.parse_args()
 
 root = args.r
-s = parser.s or "RC"
+s = args.s or "RC"
 
 if root is None:
     parser.print_usage()
@@ -38,9 +38,9 @@ for folder in os.listdir(root):
         match = re.findall(f"m_([0-9.]+)", subfolder)
         if len(match) == 0: continue
         m = float(match[0])
-        value = value if s == "RC" else 21.8
+        RC = value if s == "RC" else 21.8
         try:
-            simulations[value][m] = SimuResults(os.path.join(root, folder, subfolder), value)
+            simulations[value][m] = SimuResults(os.path.join(root, folder, subfolder), RC)
         except Exception as e:
             print(f"could not load simulation at {os.path.join(root, folder, subfolder)}")
             print(e)
