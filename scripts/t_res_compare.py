@@ -48,7 +48,7 @@ for folder in os.listdir(root):
 
 # ----------------- PLOTTING RESULTS -----------------
 
-fig, axes = plt.subplots(3, 3, figsize=(12, 12))
+fig, axes = plt.subplots(3, 3, figsize=(12, 12), dpi=300)
 axs = axes.flatten()
 
 durations = [ 1, 2, 5 ]    # years
