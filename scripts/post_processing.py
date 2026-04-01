@@ -108,7 +108,7 @@ if args.d:
 
     for sam in range(Nfluxsamples):
         print(f" {sam} of {Nfluxsamples}")
-        fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+        fig, axes = plt.subplots(1, 3, figsize=(18, 5), dpi=300)
         axs = axes.flatten()
 
         axplot(axs[0], xgrid, ygrid, pH[:,:,0,sam], "pH", cmin=1, cmax=8) # pH
