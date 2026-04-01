@@ -295,7 +295,7 @@ class SimuResults:
 
     def plot_all(self, prices: Prices, title: str = None, path = None):
         print("Plotting simulation results")
-        fig, axes = plt.subplots(2, 3, figsize=(18, 11))
+        fig, axes = plt.subplots(2, 3, figsize=(18, 18), dpi=300)
         axs = axes.flatten()
 
         self.plot_pH(axs[0])
