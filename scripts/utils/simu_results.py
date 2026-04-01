@@ -213,7 +213,7 @@ class SimuResults:
         ax.plot(self.time, self.acid_consumed,  color='red',   label="Consumed")
         ax.annotate(f"Acid consumed = {self.acid_consumed_total:.1f} T", xy=(5,self.acid_consumed_total), ha="right", va="bottom", color="red")
         ax.axhline(self.acid_consumed_total, color="red", linestyle="dashed")
-        ax.set_xlabel('Time (days)')
+        ax.set_xlabel('Time (years)')
         ax.set_ylabel('SO4 (T)')
         ax.set_xlim(0, 5)
         ax.set_title("Acid consumption")
