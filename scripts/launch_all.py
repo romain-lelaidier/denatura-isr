@@ -15,16 +15,14 @@ if not os.path.exists(rootdir):
     print(f"folder {rootdir} does not exist ; aborting")
     exit(0)
 
-remaining = 10
+i = 0
 for root, _, files in os.walk(rootdir):
-    if remaining <= 0:
-        exit(0)
     if "launcher.sh" in files:
         try:
             print(f"launching {root}")
             process = sp.Popen([ 'sbatch', 'launcher.sh' ], cwd=root)
             process.wait()
-            remaining -= 1
-            print(f"success: {remaining} left")
+            i += 1
+            print(f"success ({i})")
         except Exception as e:
             print("  error while launching:", e)
