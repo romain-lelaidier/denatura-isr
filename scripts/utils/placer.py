@@ -14,6 +14,7 @@ class Well:
         self.y = y          # (m)
         self.n = None       # number of opposite type neighbors
         self.RC = None      # (m) characteristical radius
+        self.color = "blue" if type == "p" else "red"
 
     @classmethod
     def injector(cls, x, y):
@@ -22,6 +23,22 @@ class Well:
     @classmethod
     def producer(cls, x, y):
         return cls('p', x, y)
+    
+def plot_all_wells(ax, wells: list[Well]):
+    first_injector = True
+    first_producer = True
+    for well in wells:
+        label = None
+        if first_injector and well.type == 'i':
+            label = 'injector'
+            first_injector = False
+        elif first_producer and well.type == 'p':
+            label = 'producer'
+            first_producer = False
+        if label is not None:
+            ax.scatter(well.x, well.y, color=well.color, label=label)
+        else:
+            ax.scatter(well.x, well.y, color=well.color)
 
 
 
@@ -32,7 +49,7 @@ class DistributionPlacer:
 
     def __init__(self, dtb: Distribution):
         self.dtb = dtb
-        self.U = dtb.get_col("Uraninite")
+        self.U = dtb.get_col("Uraninite")   # mol/l
         self.gx, self.gy = dtb.meshgrid
 
 
@@ -234,11 +251,14 @@ class DistributionPlacer:
     def plot_estimated_production(self, wells: list[Well], RC, output_path = None):
         estimated_production = self.estimated_production_filter(wells, RC)
         plt.figure()
-        plt.pcolormesh(self.dtb.x, self.dtb.y, estimated_production * self.U)
-        for well in wells:
-            plt.scatter(well.x, well.y, marker='x', color=('red' if well.type == 'i' else 'white'))
+        fig, ax = plt.subplots(1, 1, layout='constrained')
+        pcm = ax.pcolormesh(self.dtb.x, self.dtb.y, estimated_production * self.U * 270 * 100, cmap="Greens", alpha=0.5)
+        fig.colorbar(pcm, ax=ax, label='[U] (ppm)')
+        plot_all_wells(ax, wells)
         N_injectors = len([ well for well in wells if well.type == 'i' ])
-        plt.suptitle(f"{N_injectors} injectors ; {len(wells) - N_injectors} producers")
+        ax.axis('equal')
+        ax.legend()
+        fig.suptitle(f"{N_injectors} injectors ; {len(wells) - N_injectors} producers")
         plt.title(f"Estimated production: {self.estimated_U_production(wells, RC):.1f} T")
         if output_path is not None: plt.savefig(output_path)
 
@@ -363,10 +383,9 @@ def build_flow_rates_from_voronoi(wells: list[Well], RC: float, T_res: float, fi
         plt.figure()
         plt.axis('equal')
         for i, well in enumerate(wells):
-            color = "red" if well.type == 'i' else 'black'
             poly = [p for p in well.polygon.exterior.coords]
-            plt.fill(*zip(*poly), alpha=well.d/max_d/3, color=color)
-            plt.scatter(well.x, well.y, s=10*well.d/max_d, color=color)
+            plt.fill(*zip(*poly), alpha=well.d/max_d/3, color=well.color)
+            plt.scatter(well.x, well.y, s=10*well.d/max_d, color=well.color)
             plt.text(well.x, well.y + RC/4, str(i), horizontalalignment="center")
         plt.savefig(figure_path)
 

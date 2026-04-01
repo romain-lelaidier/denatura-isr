@@ -109,7 +109,7 @@ class Distribution:
 
     def plot(self, column="Uraninite", alpha=1):
         U = self.get_col(column)
-        plt.pcolormesh(self.x, self.y, U, alpha=alpha)
+        plt.pcolormesh(self.x, self.y, U, alpha=alpha, cmap="Greens")
         plt.colorbar()
         # plt.show()
 
@@ -127,7 +127,7 @@ class Distribution:
             z = d.min() + np.random.rand(1) * (d.max() - d.min())
             if z <= self.evaluate(x, y, colname):
                 return [x, y]
-            
+
     def smoothen(self, colname: str, smoothed_colname: str, smooth_factor: float) -> np.array:
         sigma = [ smooth_factor / self.xw, smooth_factor / self.yh ]
         smoothed = sp.ndimage.filters.gaussian_filter(self.get_col(colname), sigma, mode='constant')
