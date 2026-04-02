@@ -246,13 +246,13 @@ class SimuResults:
         N_injectors = len([ well for well in self.wells if well.type == 'i' ])
         N_producers = len(self.wells) - N_injectors
         CAPEX = N_injectors * prices.well_inj_price - N_producers * prices.well_prd_price
-        return self.profit_actualized(prices, r).sum() - CAPEX
+        return (self.profit_actualized(prices, r) * self.d_time).sum() - CAPEX
 
     def plot_profit(self, prices: Prices, r: float, ax = None):
         if ax == None:
             fig, ax = plt.subplots(1, 1)
 
-        ax.set_title(f"Instantaneous profit (r = {r*100}%, NPV = {self.net_present_value(prices, r)/1e9:.2f} Mds$)")
+        ax.set_title(f"Instantaneous profit (r = {r*100}%, NPV = {self.net_present_value(prices, r)/1e6:.1f} M$)")
         ax.plot(self.time[0:-1], self.profit_raw(prices)/1e6, label="raw", color="black")
         ax.plot(self.time[0:-1], self.profit_actualized(prices, r)/1e6, label="actualized", color="black", linestyle="dashed")
         ax.set_xlabel("time (years)")
